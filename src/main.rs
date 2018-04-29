@@ -85,8 +85,8 @@ fn main() {
     // external servers can't be used in your environment, you can substitue
     // your own.
     let dns = "8.8.8.8:53".parse().unwrap();
-    let (stream, sender) = UdpClientStream::new(dns, handle.clone());
-    let client = ClientFuture::new(stream, sender, handle.clone(), None);
+    let (stream, sender) = UdpClientStream::new(dns, &handle);
+    let client = ClientFuture::new(stream, sender, &handle, None);
 
     // Construct a future representing our server. This future processes all
     // incoming connections and spawns a new task for each client which will do
@@ -162,7 +162,7 @@ impl Client {
                 // which represents that this future has immediately failed. In
                 // this case the type of the future is `io::Error`, so we use a
                 // helper function, `other`, to create an error quickly.
-                _ => future::err(other("unknown version")).boxed(),
+                _ => Box::new(future::err(other("unknown version"))),
             }
         }))
     }
@@ -170,7 +170,7 @@ impl Client {
     /// Current SOCKSv4 is not implemented, but v5 below has more fun details!
     fn serve_v4(self, _conn: TcpStream)
                 -> Box<Future<Item=(u64, u64), Error=io::Error>> {
-        future::err(other("unimplemented")).boxed()
+        Box::new(future::err(other("unimplemented")))
     }
 
     /// The meat of a SOCKSv5 handshake.
@@ -200,7 +200,7 @@ impl Client {
         // another, but it also serves to simply have fallible computations,
         // such as checking whether the list of methods contains `METH_NO_AUTH`.
         let num_methods = read_exact(conn, [0u8]);
-        let authenticated = num_methods.and_then(|(conn, buf)| {
+        let authenticated = Box::new(num_methods.and_then(|(conn, buf)| {
             read_exact(conn, vec![0u8; buf[0] as usize])
         }).and_then(|(conn, buf)| {
             if buf.contains(&v5::METH_NO_AUTH) {
@@ -208,15 +208,15 @@ impl Client {
             } else {
                 Err(other("no supported method given"))
             }
-        }).boxed();
+        }));
 
         // After we've concluded that one of the client's supported methods is
         // `METH_NO_AUTH`, we "ack" this to the client by sending back that
         // information. Here we make use of the `write_all` combinator which
         // works very similarly to the `read_exact` combinator.
-        let part1 = authenticated.and_then(|conn| {
+        let part1 = Box::new(authenticated.and_then(|conn| {
             write_all(conn, [v5::VERSION, v5::METH_NO_AUTH])
-        }).boxed();
+        }));
 
         // Next up, we get a selected protocol version back from the client, as
         // well as a command indicating what they'd like to do. We just verify
@@ -225,7 +225,7 @@ impl Client {
         //
         // As above, we're using `and_then` not only for chaining "blocking
         // computations", but also to perform fallible computations.
-        let ack = part1.and_then(|(conn, _)| {
+        let ack = Box::new(part1.and_then(|(conn, _)| {
             read_exact(conn, [0u8]).and_then(|(conn, buf)| {
                 if buf[0] == v5::VERSION {
                     Ok(conn)
@@ -233,8 +233,8 @@ impl Client {
                     Err(other("didn't confirm with v5 version"))
                 }
             })
-        }).boxed();
-        let command = ack.and_then(|conn| {
+        }));
+        let command = Box::new(ack.and_then(|conn| {
             read_exact(conn, [0u8]).and_then(|(conn, buf)| {
                 if buf[0] == v5::CMD_CONNECT {
                     Ok(conn)
@@ -242,7 +242,7 @@ impl Client {
                     Err(other("unsupported command"))
                 }
             })
-        }).boxed();
+        }));
 
         // After we've negotiated a command, there's one byte which is reserved
         // for future use, so we read it and discard it. The next part of the
@@ -647,11 +647,11 @@ fn name_port(addr_buf: &[u8]) -> io::Result<UrlHost> {
 
 // Extracts the first IP address from the response.
 fn get_addr(response: Message, port: u16) -> io::Result<SocketAddr> {
-    if response.get_response_code() != ResponseCode::NoError {
+    if response.response_code() != ResponseCode::NoError {
         return Err(other("resolution failed"));
     }
-    let addr = response.get_answers().iter().filter_map(|ans| {
-        match *ans.get_rdata() {
+    let addr = response.answers().iter().filter_map(|ans| {
+        match *ans.rdata() {
             RData::A(addr) => Some(IpAddr::V4(addr)),
             RData::AAAA(addr) => Some(IpAddr::V6(addr)),
             _ => None,
