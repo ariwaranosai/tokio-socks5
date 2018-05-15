@@ -71,7 +71,7 @@ fn main() {
     // This is the address of the DNS server we'll send queries to. If
     // external servers can't be used in your environment, you can substitue
     // your own.
-    let dns = "114.114.114.114:53".parse().unwrap();
+    let dns = "8.8.8.8:53".parse().unwrap();
     let (stream, sender) = UdpClientStream::new(dns);
     let dns_client = ClientFuture::new(stream, sender, None);
 

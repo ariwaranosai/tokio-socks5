@@ -9,7 +9,7 @@ tokio = "0.1"
 futures = "0.1"
 tokio-io = "0.1"
 env_logger = "0.5"
-trust-dns = { git = "http://github.com/bluejekyll/trust-dns.git", rev = "182566b", default-features = false}
+trust-dns = { git = "http://github.com/bluejekyll/trust-dns.git", rev = "2f22e5a", default-features = false}
 
 [dev-dependencies]
 curl = "0.4"
