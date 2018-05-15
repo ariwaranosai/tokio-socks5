@@ -5,11 +5,11 @@ authors = ["Alex Crichton <alex@alexcrichton.com>"]
 
 [dependencies]
 log = "0.4"
+tokio = "0.1"
 futures = "0.1"
-tokio-core = "0.1"
 tokio-io = "0.1"
 env_logger = "0.5"
-trust-dns = { version = "0.13", default-features = false }
+trust-dns = { git = "http://github.com/bluejekyll/trust-dns.git", rev = "182566b", default-features = false}
 
 [dev-dependencies]
 curl = "0.4"
